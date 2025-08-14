@@ -96,7 +96,7 @@ def agregar_observacion(historia_id, texto):
         enviar_correo(
             correo_enfermero,
             "Observación en historia clínica",
-            f"Se ha agregado una observación en la historia #{historia_id}. Por favor revisar."
+            f"Se ha agregado una observación en la historia #{numero_historia}. Por favor revisar."
         )
 
 def exportar_reporte_excel(fecha_inicio=None, fecha_fin=None, usuario_id=None, ruta_salida="reporte.xlsx"):
