@@ -1,0 +1,58 @@
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, QMessageBox
+from PyQt5.QtCore import Qt
+from models import verificar_usuario
+from views.admin_panel import AdminPanel
+from views.user_panel import UserPanel
+
+class LoginWindow(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Login - Historias Clínicas")
+        self.setGeometry(200, 200, 350, 200)
+
+        layout = QVBoxLayout()
+
+        self.label_title = QLabel("Iniciar Sesión")
+        self.label_title.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.label_title)
+
+        self.input_email = QLineEdit()
+        self.input_email.setPlaceholderText("Correo electrónico")
+        layout.addWidget(self.input_email)
+
+        self.input_password = QLineEdit()
+        self.input_password.setPlaceholderText("Contraseña")
+        self.input_password.setEchoMode(QLineEdit.Password)
+        layout.addWidget(self.input_password)
+
+        self.btn_login = QPushButton("Iniciar Sesión")
+        self.btn_login.clicked.connect(self.login)
+        layout.addWidget(self.btn_login)
+
+        self.setLayout(layout)
+
+    def login(self):
+        email = self.input_email.text().strip()
+        password = self.input_password.text().strip()
+
+        if not email or not password:
+            QMessageBox.warning(self, "Error", "Por favor, complete todos los campos.")
+            return
+
+        user = verificar_usuario(email, password)
+
+        if user:
+            user_id, nombre, rol = user
+            QMessageBox.information(self, "Bienvenido", f"Hola {nombre} ({rol})")
+
+            self.hide()  # Ocultar login
+
+            if rol == "admin":
+                self.panel = AdminPanel(user_id, nombre)
+            else:
+                self.panel = UserPanel(user_id, nombre)
+
+            self.panel.show()
+
+        else:
+            QMessageBox.critical(self, "Error", "Credenciales incorrectas.")
