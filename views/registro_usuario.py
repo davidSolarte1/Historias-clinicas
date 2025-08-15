@@ -1,12 +1,14 @@
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, QComboBox, QMessageBox
 from models import registrar_usuario
+from ui_utils import centrar_ventana
+
 
 class RegistroUsuario(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Registrar Nuevo Usuario")
-        self.setGeometry(200, 200, 300, 200)
-
+        self.resize(300, 200)
+        centrar_ventana(self)
         layout = QVBoxLayout()
 
         layout.addWidget(QLabel("Nombre:"))

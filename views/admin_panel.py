@@ -1,13 +1,16 @@
 from PyQt5.QtWidgets import (
     QWidget, QLabel, QVBoxLayout, QHBoxLayout, QPushButton,
-    QTableWidget, QTableWidgetItem, QComboBox, QDateEdit, QTextEdit, QMessageBox, QFileDialog
+    QTableWidget, QTableWidgetItem, QComboBox, QDateEdit, QTextEdit, QMessageBox, QFileDialog,
+    QHeaderView 
 )
 from PyQt5.QtCore import QDate
 from models import obtener_historias, obtener_enfermeros, agregar_observacion, exportar_reporte_excel, marcar_entregada, devolver_historia
 from views.registro_usuario import RegistroUsuario
 from views.observacion import ObservacionDialog
-
+from functools import partial
 import pandas as pd
+from ui_utils import centrar_ventana
+
 
 class AdminPanel(QWidget):
     def __init__(self, user_id, nombre):
@@ -17,7 +20,8 @@ class AdminPanel(QWidget):
         self.historia_seleccionada = None
 
         self.setWindowTitle(f"Panel Administrador - {self.nombre}")
-        self.setGeometry(200, 200, 800, 600)
+        self.resize(1100, 650)
+        centrar_ventana(self)
 
         layout = QVBoxLayout()
         layout.addWidget(QLabel(f"Bienvenido Admin: {self.nombre}"))
@@ -52,10 +56,17 @@ class AdminPanel(QWidget):
 
         # Tabla
         self.tabla = QTableWidget()
-        self.tabla.setColumnCount(8)
+        self.tabla.setColumnCount(9)
         self.tabla.setHorizontalHeaderLabels([
-        "ID", "Carpeta", "Cédula", "Servicio", "Fecha", "Usuario", "Estado", "Acciones"
+            "ID", "Carpeta", "Cédula", "Servicio", "Fecha", "Usuario", "Estado", "Entregada", "Devolver"
         ])
+        # que las columnas usen el ancho disponible
+        header = self.tabla.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.Stretch)
+
+        # (opcional) filas alternadas para mejor lectura
+        self.tabla.setAlternatingRowColors(True)
+
         self.tabla.cellClicked.connect(self.seleccionar_historia)
         layout.addWidget(self.tabla)
         
@@ -88,26 +99,46 @@ class AdminPanel(QWidget):
         for row_data in historias:
             row_number = self.tabla.rowCount()
             self.tabla.insertRow(row_number)
+
+            # Datos normales
             for col, data in enumerate(row_data):
                 self.tabla.setItem(row_number, col, QTableWidgetItem(str(data)))
-       # Crear contenedor para botones
-        acciones_widget = QWidget()
-        acciones_layout = QHBoxLayout()
-        acciones_layout.setContentsMargins(0, 0, 0, 0)  # Sin márgenes
 
-        # Botón ENTREGADA
-        btn_entregada = QPushButton("Entregada")
-        btn_entregada.clicked.connect(lambda _, id_hist=row_data[0]: self.marcar_como_entregada(id_hist))
-        acciones_layout.addWidget(btn_entregada)
+            # Botón ENTREGADA
+            btn_entregada = QPushButton("Aceptar")
+            btn_entregada.setStyleSheet("""
+                QPushButton {
+                    background-color: #d4edda;     /* verde muy suave */
+                    border: 1px solid #c3e6cb;
+                    padding: 4px 10px;
+                }
+                QPushButton:hover {
+                    background-color: #c3e6cb;
+                }
+                QPushButton:pressed {
+                    background-color: #b1dfbb;
+                }
+            """)
+            btn_entregada.clicked.connect(lambda _, id_hist=row_data[0]: self.marcar_como_entregada(id_hist))
+            self.tabla.setCellWidget(row_number, 7, btn_entregada)
 
-        # Botón DEVUELTA
-        btn_devuelta = QPushButton("Devolver")
-        btn_devuelta.clicked.connect(lambda _, id_hist=row_data[0]: self.abrir_dialogo_observacion(id_hist))
-        acciones_layout.addWidget(btn_devuelta)
-
-        # Poner layout en widget y agregar a la tabla
-        acciones_widget.setLayout(acciones_layout)
-        self.tabla.setCellWidget(row_number, 7, acciones_widget)
+            # Botón DEVUELTA
+            btn_devuelta = QPushButton("Devolver")
+            btn_devuelta.setStyleSheet("""
+                QPushButton {
+                    background-color: #f8d7da;     /* rojo muy suave */
+                    border: 1px solid #f5c6cb;
+                    padding: 4px 10px;
+                }
+                QPushButton:hover {
+                    background-color: #f5c6cb;
+                }
+                QPushButton:pressed {
+                    background-color: #f1b0b7;
+                }
+            """)
+            btn_devuelta.clicked.connect(lambda _, id_hist=row_data[0]: self.abrir_dialogo_observacion(id_hist))
+            self.tabla.setCellWidget(row_number, 8, btn_devuelta)
     
     def abrir_dialogo_observacion(self, historia_id):
         dialogo = ObservacionDialog(historia_id, self)

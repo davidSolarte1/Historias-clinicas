@@ -30,7 +30,7 @@ def create_tables():
         servicio TEXT NOT NULL,
         fecha_recepcion TEXT NOT NULL,
         observacion TEXT,
-        estado TEXT CHECK(estado IN ('registrada', 'devuelta', 'entregada')) DEFAULT 'registrada',
+        estado TEXT CHECK(estado IN ('registrada', 'devuelta', 'entregada', 'revisada')) DEFAULT 'registrada',
         usuario_registro INTEGER NOT NULL,
         FOREIGN KEY(usuario_registro) REFERENCES usuarios(id)
     )

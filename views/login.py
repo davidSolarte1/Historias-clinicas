@@ -3,12 +3,14 @@ from PyQt5.QtCore import Qt
 from models import verificar_usuario
 from views.admin_panel import AdminPanel
 from views.user_panel import UserPanel
+from ui_utils import centrar_ventana
 
 class LoginWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Login - Historias Clínicas")
-        self.setGeometry(200, 200, 350, 200)
+        self.resize(350, 200)
+        centrar_ventana(self)
 
         layout = QVBoxLayout()
 

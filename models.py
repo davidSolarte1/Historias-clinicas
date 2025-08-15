@@ -1,6 +1,7 @@
 from database import get_connection, hash_password
 import pandas as pd
 from email_utils import enviar_correo
+from datetime import date
 
 # ---- Usuarios ----
 def verificar_usuario(email, password):
@@ -29,16 +30,7 @@ def registrar_usuario(nombre, email, password, rol):
     finally:
         conn.close()
 
-# ---- Historias ----
-def guardar_historia(numero_carpeta, cedula, servicio, fecha, usuario_id):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-    INSERT INTO historias_clinicas (numero_carpeta, cedula_paciente, servicio, fecha_recepcion, usuario_registro)
-    VALUES (?, ?, ?, ?, ?)
-    """, (numero_carpeta, cedula, servicio, fecha, usuario_id))
-    conn.commit()
-    conn.close()
+
 
 def obtener_enfermeros():
     conn = get_connection()
@@ -143,5 +135,61 @@ def devolver_historia(historia_id, texto):
         SET observacion=?, estado='devuelta'
         WHERE id=?
     """, (texto, historia_id))
+    conn.commit()
+    conn.close()
+
+# Funciones para el usuario
+# ---- Historias ----
+def guardar_historia(numero_carpeta, cedula, servicio, fecha, usuario_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+    INSERT INTO historias_clinicas (numero_carpeta, cedula_paciente, servicio, fecha_recepcion, usuario_registro)
+    VALUES (?, ?, ?, ?, ?)
+    """, (numero_carpeta, cedula, servicio, fecha, usuario_id))
+    conn.commit()
+    conn.close()
+
+def obtener_historias_devueltas(usuario_id: int):
+    """Historias del usuario en estado 'devuelta'."""
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT id, numero_carpeta, cedula_paciente, servicio, fecha_recepcion, observacion
+        FROM historias_clinicas
+        WHERE usuario_registro = ? AND estado = 'devuelta'
+        ORDER BY date(fecha_recepcion) DESC
+    """, (usuario_id,))
+    rows = cur.fetchall()
+    conn.close()
+    return rows
+
+def obtener_historia_por_id(historia_id: int):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT id, numero_carpeta, cedula_paciente, servicio, fecha_recepcion, observacion, estado
+        FROM historias_clinicas
+        WHERE id = ?
+    """, (historia_id,))
+    row = cur.fetchone()
+    conn.close()
+    return row
+
+def actualizar_historia_revisada(historia_id: int, numero_carpeta: str, cedula_paciente: str,servicio: str, fecha_recepcion: str | None = None):
+    """
+    Actualiza la historia devuelta; por defecto pone la fecha de hoy
+    y cambia estado a 'revisada'.
+    """
+    if not fecha_recepcion:
+        fecha_recepcion = date.today().isoformat()
+
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        UPDATE historias_clinicas
+        SET numero_carpeta = ?, cedula_paciente = ?, servicio = ?, fecha_recepcion = ?, estado = 'revisada'
+        WHERE id = ?
+    """, (numero_carpeta, cedula_paciente, servicio, fecha_recepcion, historia_id))
     conn.commit()
     conn.close()

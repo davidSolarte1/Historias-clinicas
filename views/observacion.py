@@ -1,5 +1,7 @@
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QTextEdit, QPushButton, QMessageBox
 from models import devolver_historia, agregar_observacion
+from ui_utils import centrar_ventana
+
 
 class ObservacionDialog(QDialog):
     def __init__(self, historia_id, parent=None):
@@ -8,6 +10,7 @@ class ObservacionDialog(QDialog):
         self.setWindowTitle("Agregar Observación")
         self.setModal(True)
         self.resize(400, 300)
+        centrar_ventana(self)
 
         layout = QVBoxLayout()
 
