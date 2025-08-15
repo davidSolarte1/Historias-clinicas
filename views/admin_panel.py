@@ -3,8 +3,10 @@ from PyQt5.QtWidgets import (
     QTableWidget, QTableWidgetItem, QComboBox, QDateEdit, QTextEdit, QMessageBox, QFileDialog
 )
 from PyQt5.QtCore import QDate
-from models import obtener_historias, obtener_enfermeros, agregar_observacion, exportar_reporte_excel
+from models import obtener_historias, obtener_enfermeros, agregar_observacion, exportar_reporte_excel, marcar_entregada, devolver_historia
 from views.registro_usuario import RegistroUsuario
+from views.observacion import ObservacionDialog
+
 import pandas as pd
 
 class AdminPanel(QWidget):
@@ -50,19 +52,12 @@ class AdminPanel(QWidget):
 
         # Tabla
         self.tabla = QTableWidget()
-        self.tabla.setColumnCount(6)
-        self.tabla.setHorizontalHeaderLabels(["ID", "Carpeta", "Cédula", "Servicio", "Fecha", "Usuario"])
+        self.tabla.setColumnCount(8)
+        self.tabla.setHorizontalHeaderLabels([
+        "ID", "Carpeta", "Cédula", "Servicio", "Fecha", "Usuario", "Estado", "Acciones"
+        ])
         self.tabla.cellClicked.connect(self.seleccionar_historia)
         layout.addWidget(self.tabla)
-
-        # Observaciones
-        self.txt_observacion = QTextEdit()
-        layout.addWidget(QLabel("Observación:"))
-        layout.addWidget(self.txt_observacion)
-
-        self.btn_guardar_obs = QPushButton("Guardar Observación")
-        self.btn_guardar_obs.clicked.connect(self.guardar_observacion)
-        layout.addWidget(self.btn_guardar_obs)
         
         #Exportar a EXCEL
         self.btn_exportar_excel = QPushButton("Exportar a Excel")
@@ -89,38 +84,60 @@ class AdminPanel(QWidget):
         historias = obtener_historias(fecha_ini, fecha_fin, enfermero_id)
 
         self.tabla.setRowCount(0)
+
         for row_data in historias:
             row_number = self.tabla.rowCount()
             self.tabla.insertRow(row_number)
             for col, data in enumerate(row_data):
                 self.tabla.setItem(row_number, col, QTableWidgetItem(str(data)))
+       # Crear contenedor para botones
+        acciones_widget = QWidget()
+        acciones_layout = QHBoxLayout()
+        acciones_layout.setContentsMargins(0, 0, 0, 0)  # Sin márgenes
+
+        # Botón ENTREGADA
+        btn_entregada = QPushButton("Entregada")
+        btn_entregada.clicked.connect(lambda _, id_hist=row_data[0]: self.marcar_como_entregada(id_hist))
+        acciones_layout.addWidget(btn_entregada)
+
+        # Botón DEVUELTA
+        btn_devuelta = QPushButton("Devolver")
+        btn_devuelta.clicked.connect(lambda _, id_hist=row_data[0]: self.abrir_dialogo_observacion(id_hist))
+        acciones_layout.addWidget(btn_devuelta)
+
+        # Poner layout en widget y agregar a la tabla
+        acciones_widget.setLayout(acciones_layout)
+        self.tabla.setCellWidget(row_number, 7, acciones_widget)
+    
+    def abrir_dialogo_observacion(self, historia_id):
+        dialogo = ObservacionDialog(historia_id, self)
+        if dialogo.exec_():  # Si se guardó y cerró
+            self.cargar_historias()
+    
+    def marcar_como_entregada(self, historia_id):
+        marcar_entregada(historia_id)
+        QMessageBox.information(self, "Estado", "Historia marcada como entregada.")
+        self.cargar_historias()
+
+    def devolver_historia(self, historia_id):
+        texto = self.txt_observacion.toPlainText().strip()
+        if not texto:
+            QMessageBox.warning(self, "Error", "Ingrese una observación antes de devolver.")
+            return
+        devolver_historia(historia_id, texto)
+        QMessageBox.information(self, "Estado", "Historia devuelta al enfermero.")
+        self.txt_observacion.clear()
+        self.cargar_historias()
 
     def seleccionar_historia(self, row, column):
         self.historia_seleccionada = self.tabla.item(row, 0).text()
 
-    def guardar_observacion(self):
-        if not self.historia_seleccionada:
-            QMessageBox.warning(self, "Error", "Seleccione una historia primero.")
-            return
-
-        texto = self.txt_observacion.toPlainText().strip()
-        if not texto:
-            QMessageBox.warning(self, "Error", "Ingrese una observación.")
-            return
-
-        agregar_observacion(self.historia_seleccionada, texto)
-        QMessageBox.information(self, "Éxito", "Observación guardada correctamente.")
-        self.txt_observacion.clear()
+    
     
     def generar_reporte(self):
         ruta, _ = QFileDialog.getSaveFileName(self, "Guardar reporte", "", "Excel (*.xlsx)")
         if ruta:
-            exito = exportar_reporte_excel(
-                fecha_inicio=self.fecha_inicio.text(),
-                fecha_fin=self.fecha_fin.text(),
-                usuario_id=self.combo_enfermero.currentData(),
-                ruta_salida=ruta
-            )
+            exito = exportar_reporte_excel(ruta_salida=ruta)
             if exito:
                 QMessageBox.information(self, "Reporte", "Reporte exportado con éxito.")
             else:

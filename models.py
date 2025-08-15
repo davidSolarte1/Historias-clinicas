@@ -54,14 +54,14 @@ def obtener_historias(fecha_ini, fecha_fin, enfermero_id=None):
 
     if enfermero_id and enfermero_id != None:
         cursor.execute("""
-            SELECT h.id, h.numero_carpeta, h.cedula_paciente, h.servicio, h.fecha_recepcion, u.nombre
+            SELECT h.id, h.numero_carpeta, h.cedula_paciente, h.servicio, h.fecha_recepcion, u.nombre, h.estado
             FROM historias_clinicas h
             JOIN usuarios u ON h.usuario_registro = u.id
             WHERE h.fecha_recepcion BETWEEN ? AND ? AND u.id = ?
         """, (fecha_ini, fecha_fin, enfermero_id))
     else:
         cursor.execute("""
-            SELECT h.id, h.numero_carpeta, h.cedula_paciente, h.servicio, h.fecha_recepcion, u.nombre
+            SELECT h.id, h.numero_carpeta, h.cedula_paciente, h.servicio, h.fecha_recepcion, u.nombre, h.estado
             FROM historias_clinicas h
             JOIN usuarios u ON h.usuario_registro = u.id
             WHERE h.fecha_recepcion BETWEEN ? AND ?
@@ -76,14 +76,14 @@ def agregar_observacion(historia_id, texto):
     cursor = conn.cursor()
     cursor.execute("""
         UPDATE historias_clinicas
-        SET observacion=?, estado='pendiente'
+        SET observacion=?, estado='devuelta'
         WHERE id=?
     """, (texto, historia_id))
     conn.commit()
 
     # Obtener email
     cursor.execute("""
-        SELECT u.email
+        SELECT u.email, h.numero_carpeta,  h.observacion
         FROM historias_clinicas h
         INNER JOIN usuarios u ON h.usuario_registro = u.id
         WHERE h.id=?
@@ -92,35 +92,30 @@ def agregar_observacion(historia_id, texto):
     conn.close()
 
     if resultado:
-        correo_enfermero = resultado[0]
+        correo_enfermero, numero_carpeta, observacion= resultado
+        mensaje = (
+            f"Estimado(a),\n\n"
+            f"Se ha agregado una observación a la historia clínica:\n"
+            f"📂 Número de carpeta: {numero_carpeta}\n"
+            f"📝 Observación: {observacion}\n\n"
+            "Por favor, revisa el sistema para realizar las correcciones necesarias."
+        )
         enviar_correo(
             correo_enfermero,
             "Observación en historia clínica",
-            f"Se ha agregado una observación en la historia #{numero_historia}. Por favor revisar."
+            mensaje
         )
 
-def exportar_reporte_excel(fecha_inicio=None, fecha_fin=None, usuario_id=None, ruta_salida="reporte.xlsx"):
+def exportar_reporte_excel(ruta_salida="reporte.xlsx"):
     conn = get_connection()
     query = """
     SELECT h.id, h.numero_carpeta, h.cedula_paciente, h.servicio, h.fecha_recepcion, 
            u.nombre as enfermero, h.observacion, h.estado
     FROM historias_clinicas h
     INNER JOIN usuarios u ON h.usuario_registro = u.id
-    WHERE 1=1
     """
-    params = []
 
-    if fecha_inicio:
-        query += " AND date(h.fecha_recepcion) >= date(?)"
-        params.append(fecha_inicio)
-    if fecha_fin:
-        query += " AND date(h.fecha_recepcion) <= date(?)"
-        params.append(fecha_fin)
-    if usuario_id:
-        query += " AND h.usuario_registro = ?"
-        params.append(usuario_id)
-
-    df = pd.read_sql_query(query, conn, params=params)
+    df = pd.read_sql_query(query, conn)
     conn.close()
 
     if df.empty:
@@ -128,3 +123,25 @@ def exportar_reporte_excel(fecha_inicio=None, fecha_fin=None, usuario_id=None, r
 
     df.to_excel(ruta_salida, index=False)
     return True
+
+def marcar_entregada(historia_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE historias_clinicas
+        SET estado='entregada', observacion=NULL
+        WHERE id=?
+    """, (historia_id,))
+    conn.commit()
+    conn.close()
+
+def devolver_historia(historia_id, texto):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE historias_clinicas
+        SET observacion=?, estado='devuelta'
+        WHERE id=?
+    """, (texto, historia_id))
+    conn.commit()
+    conn.close()
