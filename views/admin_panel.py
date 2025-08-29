@@ -1,15 +1,18 @@
 from PyQt5.QtWidgets import (
-    QWidget, QLabel, QVBoxLayout, QHBoxLayout, QPushButton,
+    QWidget, QLabel, QVBoxLayout, QHBoxLayout, QPushButton, QToolButton,
     QTableWidget, QTableWidgetItem, QComboBox, QDateEdit, QTextEdit, QMessageBox, QFileDialog,
     QHeaderView 
 )
-from PyQt5.QtCore import QDate
-from models import obtener_historias, obtener_enfermeros, agregar_observacion, exportar_reporte_excel, marcar_entregada, devolver_historia
+from datetime import date
+from PyQt5.QtGui import QIcon
+from PyQt5.QtCore import QDate,Qt, QSize
+from models import obtener_historias, obtener_enfermeros, exportar_reporte_excel, marcar_entregada, obtener_servicios
 from views.registro_usuario import RegistroUsuario
+from views.editar_usuario import EditarUsuario
 from views.observacion import ObservacionDialog
 from functools import partial
 import pandas as pd
-from ui_utils import centrar_ventana
+from ui_utils import centrar_ventana,ruta_recurso, aplicar_icono
 
 
 class AdminPanel(QWidget):
@@ -18,20 +21,19 @@ class AdminPanel(QWidget):
         self.user_id = user_id
         self.nombre = nombre
         self.historia_seleccionada = None
-
-        self.setWindowTitle(f"Panel Administrador - {self.nombre}")
-        self.resize(1100, 650)
+        aplicar_icono(self)
+        self.setWindowTitle(f"SIREH - {self.nombre}")
+        self.resize(1400, 650)
         centrar_ventana(self)
 
         layout = QVBoxLayout()
-        layout.addWidget(QLabel(f"Bienvenido Admin: {self.nombre}"))
 
         # Filtros
         filtros_layout = QHBoxLayout()
 
         self.fecha_inicio = QDateEdit()
         self.fecha_inicio.setCalendarPopup(True)
-        self.fecha_inicio.setDate(QDate.currentDate().addMonths(-1))
+        self.fecha_inicio.setDate(QDate.currentDate())
         filtros_layout.addWidget(QLabel("Desde:"))
         filtros_layout.addWidget(self.fecha_inicio)
 
@@ -47,18 +49,41 @@ class AdminPanel(QWidget):
             self.combo_enfermero.addItem(enfermero[1], enfermero[0])  # nombre, id
         filtros_layout.addWidget(QLabel("Enfermero:"))
         filtros_layout.addWidget(self.combo_enfermero)
+        
+        # Servicio/Área
+        self.combo_servicio = QComboBox()
+        self.combo_servicio.addItem("Todos")
+        try:
+            for s in obtener_servicios():
+                if s:
+                    self.combo_servicio.addItem(s)
+        except:
+            pass  # si falla, queda solo "Todos"
+        filtros_layout.addWidget(QLabel("Área/Servicio:"))
+        filtros_layout.addWidget(self.combo_servicio)
 
-        self.btn_filtrar = QPushButton("Filtrar")
-        self.btn_filtrar.clicked.connect(self.cargar_historias)
-        filtros_layout.addWidget(self.btn_filtrar)
+        # Estado
+        self.combo_estado = QComboBox()
+        self.combo_estado.addItems(["Todos", "registrada", "devuelta", "revisada", "entregada"])
+        filtros_layout.addWidget(QLabel("Estado:"))
+        filtros_layout.addWidget(self.combo_estado)
+
+        self.btn_buscar = QToolButton()
+        self.btn_buscar.setText("Buscar")
+        self.btn_buscar.setIcon(QIcon(ruta_recurso("icons/buscar.png")))
+        self.btn_buscar.setIconSize(QSize(48, 48)) 
+        self.btn_buscar.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+        self.btn_buscar.setFixedSize(80, 80)
+        self.btn_buscar.clicked.connect(self.cargar_historias)
+        filtros_layout.addWidget(self.btn_buscar)
 
         layout.addLayout(filtros_layout)
 
         # Tabla
         self.tabla = QTableWidget()
-        self.tabla.setColumnCount(9)
+        self.tabla.setColumnCount(13)
         self.tabla.setHorizontalHeaderLabels([
-            "ID", "Carpeta", "Cédula", "Servicio", "Fecha", "Usuario", "Estado", "Entregada", "Devolver"
+            "ID", "Carpeta", "Cédula","Nombre", "Apellido", "Servicio", "Fecha", "Usuario", "Estado", "Fecha Devolución", "Nueva Entrega", "Aceptar", "Devolver"
         ])
         # que las columnas usen el ancho disponible
         header = self.tabla.horizontalHeader()
@@ -70,29 +95,66 @@ class AdminPanel(QWidget):
         self.tabla.cellClicked.connect(self.seleccionar_historia)
         layout.addWidget(self.tabla)
         
+        #Botones
+        acciones_layout = QHBoxLayout()
         #Exportar a EXCEL
-        self.btn_exportar_excel = QPushButton("Exportar a Excel")
+        self.btn_exportar_excel = QToolButton()
+        self.btn_exportar_excel.setText("Exportar a Excel")
+        self.btn_exportar_excel.setIcon(QIcon(ruta_recurso("icons/excel.png")))
+        self.btn_exportar_excel.setIconSize(QSize(48, 48)) 
+        self.btn_exportar_excel.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
         self.btn_exportar_excel.clicked.connect(self.generar_reporte)
-        layout.addWidget(self.btn_exportar_excel)
+        acciones_layout.addWidget(self.btn_exportar_excel)
 
         #Registrar Usuarios
-        self.btn_nuevo_usuario = QPushButton("Registrar Nuevo Usuario")
+        self.btn_nuevo_usuario = QToolButton()
+        self.btn_nuevo_usuario.setText("Registrar Nuevo Usuario")
+        self.btn_nuevo_usuario.setIcon(QIcon(ruta_recurso("icons/nuevo_usuario.png")))
+        self.btn_nuevo_usuario.setIconSize(QSize(48, 48)) 
+        self.btn_nuevo_usuario.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
         self.btn_nuevo_usuario.clicked.connect(self.abrir_registro_usuario)
-        layout.addWidget(self.btn_nuevo_usuario)
+        acciones_layout.addWidget(self.btn_nuevo_usuario)
 
+        #Editar Usuarios
+        self.btn_editar_usuario = QToolButton()
+        self.btn_editar_usuario.setText("Editar Usuario")
+        self.btn_editar_usuario.setIcon(QIcon(ruta_recurso("icons/editar_usuario.png")))
+        self.btn_editar_usuario.setIconSize(QSize(48, 48)) 
+        self.btn_editar_usuario.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+        self.btn_editar_usuario.clicked.connect(self.abrir_editar_usuario)
+        acciones_layout.addWidget(self.btn_editar_usuario)
+
+        #Cerrar Sesion
+        self.btn_cerrar = QToolButton()
+        self.btn_cerrar.setText("Salir")
+        self.btn_cerrar.setIcon(QIcon(ruta_recurso("icons/cerrar-sesion.png")))
+        self.btn_cerrar.setIconSize(QSize(48, 48)) 
+        self.btn_cerrar.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+        self.btn_cerrar.clicked.connect(self.cerrar_sesion)
+        self.btn_cerrar.setFixedWidth(80)
+        acciones_layout.addWidget(self.btn_cerrar)
+
+
+        layout.addLayout(acciones_layout)
         self.setLayout(layout)
         self.cargar_historias()
     
     def abrir_registro_usuario(self):
         self.ventana_registro = RegistroUsuario()
         self.ventana_registro.show()
+    
+    def abrir_editar_usuario(self):
+        self.ventana_editar = EditarUsuario()
+        self.ventana_editar.show()
 
     def cargar_historias(self):
         fecha_ini = self.fecha_inicio.date().toString("yyyy-MM-dd")
         fecha_fin = self.fecha_fin.date().toString("yyyy-MM-dd")
         enfermero_id = self.combo_enfermero.currentData()
+        servicio = self.combo_servicio.currentText()
+        estado = self.combo_estado.currentText()
 
-        historias = obtener_historias(fecha_ini, fecha_fin, enfermero_id)
+        historias = obtener_historias(fecha_ini, fecha_fin, enfermero_id, servicio, estado)
 
         self.tabla.setRowCount(0)
 
@@ -120,7 +182,7 @@ class AdminPanel(QWidget):
                 }
             """)
             btn_entregada.clicked.connect(lambda _, id_hist=row_data[0]: self.marcar_como_entregada(id_hist))
-            self.tabla.setCellWidget(row_number, 7, btn_entregada)
+            self.tabla.setCellWidget(row_number, 11, btn_entregada)
 
             # Botón DEVUELTA
             btn_devuelta = QPushButton("Devolver")
@@ -138,7 +200,7 @@ class AdminPanel(QWidget):
                 }
             """)
             btn_devuelta.clicked.connect(lambda _, id_hist=row_data[0]: self.abrir_dialogo_observacion(id_hist))
-            self.tabla.setCellWidget(row_number, 8, btn_devuelta)
+            self.tabla.setCellWidget(row_number, 12, btn_devuelta)
     
     def abrir_dialogo_observacion(self, historia_id):
         dialogo = ObservacionDialog(historia_id, self)
@@ -150,15 +212,6 @@ class AdminPanel(QWidget):
         QMessageBox.information(self, "Estado", "Historia marcada como entregada.")
         self.cargar_historias()
 
-    def devolver_historia(self, historia_id):
-        texto = self.txt_observacion.toPlainText().strip()
-        if not texto:
-            QMessageBox.warning(self, "Error", "Ingrese una observación antes de devolver.")
-            return
-        devolver_historia(historia_id, texto)
-        QMessageBox.information(self, "Estado", "Historia devuelta al enfermero.")
-        self.txt_observacion.clear()
-        self.cargar_historias()
 
     def seleccionar_historia(self, row, column):
         self.historia_seleccionada = self.tabla.item(row, 0).text()
@@ -166,10 +219,17 @@ class AdminPanel(QWidget):
     
     
     def generar_reporte(self):
-        ruta, _ = QFileDialog.getSaveFileName(self, "Guardar reporte", "", "Excel (*.xlsx)")
+        nombre_archivo = f"Reporte_{date.today().isoformat()}.xlsx"
+        ruta, _ = QFileDialog.getSaveFileName(self, "Guardar reporte", nombre_archivo, "Excel (*.xlsx)")
         if ruta:
             exito = exportar_reporte_excel(ruta_salida=ruta)
             if exito:
                 QMessageBox.information(self, "Reporte", "Reporte exportado con éxito.")
             else:
                 QMessageBox.warning(self, "Reporte", "No hay datos para exportar.")
+
+    def cerrar_sesion(self):
+        from views.login import LoginWindow
+        self.close()
+        self.login = LoginWindow()
+        self.login.show()

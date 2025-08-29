@@ -3,12 +3,13 @@ from PyQt5.QtCore import Qt
 from models import verificar_usuario
 from views.admin_panel import AdminPanel
 from views.user_panel import UserPanel
-from ui_utils import centrar_ventana
+from ui_utils import centrar_ventana,aplicar_icono
 
 class LoginWindow(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Login - Historias Clínicas")
+        self.setWindowTitle("SIREH - Login")
+        aplicar_icono(self)
         self.resize(350, 200)
         centrar_ventana(self)
 
@@ -26,6 +27,8 @@ class LoginWindow(QWidget):
         self.input_password.setPlaceholderText("Contraseña")
         self.input_password.setEchoMode(QLineEdit.Password)
         layout.addWidget(self.input_password)
+        self.input_email.returnPressed.connect(self.input_password.setFocus)
+        self.input_password.returnPressed.connect(self.login)
 
         self.btn_login = QPushButton("Iniciar Sesión")
         self.btn_login.clicked.connect(self.login)
@@ -45,7 +48,6 @@ class LoginWindow(QWidget):
 
         if user:
             user_id, nombre, rol = user
-            QMessageBox.information(self, "Bienvenido", f"Hola {nombre} ({rol})")
 
             self.hide()  # Ocultar login
 
@@ -53,7 +55,6 @@ class LoginWindow(QWidget):
                 self.panel = AdminPanel(user_id, nombre)
             else:
                 self.panel = UserPanel(user_id, nombre)
-
             self.panel.show()
 
         else:

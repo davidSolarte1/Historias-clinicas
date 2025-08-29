@@ -1,1 +1,4 @@
 constants.py
+venv/
+dist/
+build/
