@@ -189,7 +189,7 @@ def obtener_historias(fecha_ini, fecha_fin, enfermero_id=None, servicio=None, es
             sql += " AND h.estado = %s"
             params.append(estado)
 
-        sql += " ORDER BY COALESCE( h.fecha_recepcion) DESC"
+        sql += " ORDER BY h.id DESC, COALESCE( h.fecha_recepcion) DESC"
 
         cur.execute(sql, tuple(params))
         return cur.fetchall()
@@ -331,6 +331,16 @@ def obtener_historia_por_id(historia_id: int):
     conn.close()
     return row
 
+def eliminar_historia(historia_id: int) -> bool:
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM historias_clinicas WHERE id=%s", (historia_id,))
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
 def actualizar_historia_revisada(historia_id: int, numero_carpeta: str, cedula_paciente: str,nombre: str, apellido: str, servicio: str):
     """
     Actualiza la historia devuelta; por defecto pone la fecha de hoy
@@ -346,3 +356,64 @@ def actualizar_historia_revisada(historia_id: int, numero_carpeta: str, cedula_p
     """, (numero_carpeta, cedula_paciente, nombre, apellido, servicio,  date.today().isoformat(), historia_id))
     conn.commit()
     conn.close()
+
+def obtener_historias_registradas(user_id, fecha_ini=None, fecha_fin=None):
+    """
+    Lista historias digitadas por el usuario. Si das fechas (YYYY-MM-DD), filtra por fecha_recepcion.
+    Retorna: (id, numero_carpeta, cedula_paciente, nombre_paciente, apellido_paciente,
+              servicio, fecha_recepcion, estado, observacion)
+    """
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        if fecha_ini and fecha_fin:
+            cur.execute("""
+                SELECT id, numero_carpeta, cedula_paciente, nombre_paciente, apellido_paciente,
+                       servicio, fecha_recepcion, estado, COALESCE(observacion,'')
+                FROM historias_clinicas
+                WHERE usuario_registro=%s AND fecha_recepcion BETWEEN %s AND %s
+                ORDER BY fecha_recepcion DESC, id DESC
+            """, (user_id, fecha_ini, fecha_fin))
+        else:
+            cur.execute("""
+                SELECT id, numero_carpeta, cedula_paciente, nombre_paciente, apellido_paciente,
+                       servicio, fecha_recepcion, estado, COALESCE(observacion,'')
+                FROM historias_clinicas
+                WHERE usuario_registro=%s
+                ORDER BY fecha_recepcion DESC, id DESC
+            """, (user_id,))
+        return cur.fetchall()
+    finally:
+        conn.close()
+
+
+
+def actualizar_historia_edicion(historia_id, num_carpeta, cedula, nombre, apellido, servicio):
+    """
+    Edición de una historia existente (sin cambiar estado a 'revisada').
+    Por política: NO permite editar si la historia ya está 'entregada'.
+    """
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        # Verificar estado primero
+        cur.execute("SELECT estado FROM historias_clinicas WHERE id=%s", (historia_id,))
+        row = cur.fetchone()
+        if not row:
+            return False, "No existe la historia."
+        if row[0] == "entregada":
+            return False, "No se puede editar una historia ya entregada."
+
+        cur.execute("""
+            UPDATE historias_clinicas
+            SET numero_carpeta=%s,
+                cedula_paciente=%s,
+                nombre_paciente=%s,
+                apellido_paciente=%s,
+                servicio=%s
+            WHERE id=%s
+        """, (num_carpeta, cedula, nombre, apellido, servicio, historia_id))
+        conn.commit()
+        return cur.rowcount > 0, None
+    finally:
+        conn.close()

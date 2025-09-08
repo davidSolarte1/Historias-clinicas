@@ -40,7 +40,7 @@ class RegistroUsuario(QWidget):
     def registrar_usuario(self):
         cedula = self.input_cedula.text().strip()
         name = self.input_name.text().strip()
-        email = self.input_email.text().strip()
+        email = self.input_email.text().strip().lower()
         password = self.input_cedula.text().strip()
         role = self.combo_role.currentText()
 

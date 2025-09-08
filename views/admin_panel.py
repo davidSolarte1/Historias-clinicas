@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import (
 from datetime import date
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import QDate,Qt, QSize
-from models import obtener_historias, obtener_enfermeros, exportar_reporte_excel, marcar_entregada, obtener_servicios
+from models import obtener_historias, obtener_enfermeros, exportar_reporte_excel, marcar_entregada, obtener_servicios,obtener_historia_por_id, eliminar_historia
 from views.registro_usuario import RegistroUsuario
 from views.editar_usuario import EditarUsuario
 from views.observacion import ObservacionDialog
@@ -81,9 +81,9 @@ class AdminPanel(QWidget):
 
         # Tabla
         self.tabla = QTableWidget()
-        self.tabla.setColumnCount(13)
+        self.tabla.setColumnCount(14)
         self.tabla.setHorizontalHeaderLabels([
-            "ID", "Carpeta", "Cédula","Nombre", "Apellido", "Servicio", "Fecha", "Usuario", "Estado", "Fecha Devolución", "Nueva Entrega", "Aceptar", "Devolver"
+            "ID", "Carpeta", "Cédula","Nombre", "Apellido", "Servicio", "Fecha", "Usuario", "Estado", "Fecha Devolución", "Nueva Entrega", "Aceptar", "Devolver", "Eliminar"
         ])
         # que las columnas usen el ancho disponible
         header = self.tabla.horizontalHeader()
@@ -181,9 +181,9 @@ class AdminPanel(QWidget):
                     background-color: #b1dfbb;
                 }
             """)
+            btn_entregada.setCursor(Qt.PointingHandCursor)
             btn_entregada.clicked.connect(lambda _, id_hist=row_data[0]: self.marcar_como_entregada(id_hist))
             self.tabla.setCellWidget(row_number, 11, btn_entregada)
-
             # Botón DEVUELTA
             btn_devuelta = QPushButton("Devolver")
             btn_devuelta.setStyleSheet("""
@@ -199,8 +199,37 @@ class AdminPanel(QWidget):
                     background-color: #f1b0b7;
                 }
             """)
+            btn_devuelta.setCursor(Qt.PointingHandCursor)
             btn_devuelta.clicked.connect(lambda _, id_hist=row_data[0]: self.abrir_dialogo_observacion(id_hist))
             self.tabla.setCellWidget(row_number, 12, btn_devuelta)
+            
+            # Botón ELIMINAR
+            btn_eliminar = QPushButton("Eliminar")
+            btn_eliminar.setStyleSheet("""
+                QPushButton {
+                    background-color: #e57373;     /* rojo suave */
+                    border: 1px solid #d32f2f;
+                    color: white;
+                    padding: 4px 10px;
+                }
+                QPushButton:hover {
+                    background-color: #ef5350;
+                }
+                QPushButton:pressed {
+                    background-color: #c62828;
+                }
+                QPushButton:disabled {
+                    background-color: #bdbdbd;     /* gris cuando está deshabilitado */
+                    border: 1px solid #ABABAB;
+                    color: #757575;
+                }
+            """)
+            btn_eliminar.setCursor(Qt.PointingHandCursor)
+            if row_data[8] == "entregada":  
+                btn_eliminar.setEnabled(False)
+
+            btn_eliminar.clicked.connect(lambda _, id_hist=row_data[0]: self.confirmacion_eliminar(id_hist))
+            self.tabla.setCellWidget(row_number, 13, btn_eliminar)
     
     def abrir_dialogo_observacion(self, historia_id):
         dialogo = ObservacionDialog(historia_id, self)
@@ -211,6 +240,48 @@ class AdminPanel(QWidget):
         marcar_entregada(historia_id)
         QMessageBox.information(self, "Estado", "Historia marcada como entregada.")
         self.cargar_historias()
+
+    def confirmacion_eliminar(self, historia_id: int):
+        # Consultar datos de la historia
+        row = obtener_historia_por_id(historia_id)
+        if not row:
+            QMessageBox.critical(self, "Error", "No se encontró la historia.")
+            return
+
+        _, num, ced, nom, ape, srv, fecha, *_ = row
+
+        detalle = f"""
+        Carpeta: {num}
+        Paciente: {nom} {ape}
+        Cédula: {ced}
+        Servicio: {srv}
+        Fecha: {fecha}
+        """
+
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Warning)
+        msg.setWindowTitle("Confirmar eliminación")
+        msg.setText(f"¿Está seguro de eliminar esta historia?\n\n{detalle}\n\nEsta acción no se puede deshacer.")
+
+        # Botones personalizados en español
+        btn_si = msg.addButton("Sí", QMessageBox.YesRole)
+        btn_no = msg.addButton("No", QMessageBox.NoRole)
+
+        # Hacemos que "No" sea el predeterminado
+        msg.setDefaultButton(btn_no)
+
+        msg.exec_()
+
+        if msg.clickedButton() == btn_si:
+            try:
+                ok = eliminar_historia(historia_id)
+                if ok:
+                    QMessageBox.information(self, "Eliminada", "La historia fue eliminada correctamente.")
+                    self.cargar_historias()
+                else:
+                    QMessageBox.warning(self, "Aviso", "No se pudo eliminar (verifique el ID).")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"No se pudo eliminar: {e}")
 
 
     def seleccionar_historia(self, row, column):

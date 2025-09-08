@@ -37,7 +37,7 @@ class LoginWindow(QWidget):
         self.setLayout(layout)
 
     def login(self):
-        email = self.input_email.text().strip()
+        email = self.input_email.text().strip().lower()
         password = self.input_password.text().strip()
 
         if not email or not password:
